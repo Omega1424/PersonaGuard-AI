@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <defs>
+    <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a6c1ee"/>
+      <stop offset="100%" stop-color="#6991c7"/>
+    </linearGradient>
+    <linearGradient id="screenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e0f7fa"/>
+      <stop offset="100%" stop-color="#80deea"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="150" y="125" width="200" height="180" rx="40" ry="40" fill="url(#bodyGradient)" stroke="#5472a1" stroke-width="3"/>
+
+  <rect x="175" y="160" width="150" height="110" rx="20" ry="20" fill="url(#screenGradient)"/>
+
+  <ellipse cx="215" cy="205" rx="18" ry="22" fill="#37474f"/>
+  <ellipse cx="285" cy="205" rx="18" ry="22" fill="#37474f"/>
+  <circle cx="222" cy="198" r="6" fill="#ffffff"/>
+  <circle cx="292" cy="198" r="6" fill="#ffffff"/>
+
+  <path d="M 225 240 Q 250 260 275 240" stroke="#37474f" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+  <line x1="250" y1="125" x2="250" y2="85" stroke="#5472a1" stroke-width="5"/>
+  <circle cx="250" cy="75" r="12" fill="#ffeb3b" stroke="#fbc02d" stroke-width="2" filter="url(#glow)"/>
+
+  <path d="M 180 305 L 320 305 L 340 350 C 340 365 320 375 250 375 C 180 375 160 365 160 350 L 180 305 Z" fill="#78909c"/>
+</svg>
