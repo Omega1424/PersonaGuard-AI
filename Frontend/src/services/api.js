@@ -1,75 +1,74 @@
 import axios from 'axios'
 
-// Determine API base URL based on environment
 const getBaseURL = () => {
-  // In production (Vercel), use the Render backend URL
-  // In development, use relative path (Vite proxy will handle it)
   if (import.meta.env.PROD) {
     return 'https://nlp-project-06lg.onrender.com/api'
   }
   return '/api'
 }
 
-// Create axios instance with default configuration
 const api = axios.create({
   baseURL: getBaseURL(),
-  timeout: 30000, // 30 seconds timeout
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 60000,
+  headers: { 'Content-Type': 'application/json' },
 })
 
-// Request interceptor for debugging
 api.interceptors.request.use(
   (config) => {
     console.log('API Request:', config.method?.toUpperCase(), config.url, config.data)
     return config
   },
-  (error) => {
-    console.error('API Request Error:', error)
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor for debugging
 api.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', response.status, response.data)
-    return response
-  },
+  (response) => response,
   (error) => {
-    console.error('API Response Error:', error.response?.status, error.response?.data)
+    console.error('API Error:', error.response?.status, error.response?.data)
     return Promise.reject(error)
   }
 )
 
-// Chat API functions
-export const chatAPI = {
-  // Send message to chatbot with persona support
-  sendMessage: async (message, conversationHistory = [], persona = 'singlish') => {
-    try {
-      const endpoint = `/chat/${persona}`
-      const response = await api.post(endpoint, {
-        message: message,
-        conversation_history: conversationHistory
-      })
-      return response.data
-    } catch (error) {
-      console.error('Send message error:', error)
-      throw error
-    }
-  },
+// ─── User ─────────────────────────────────────────────────────────────────────
 
-  // Check API health
-  healthCheck: async () => {
-    try {
-      const response = await api.get('/health')
-      return response.data
-    } catch (error) {
-      console.error('Health check error:', error)
-      throw error
-    }
-  }
+export const userAPI = {
+  init: (userId) =>
+    api.post('/user/init', { user_id: userId }).then((r) => r.data),
+
+  getStats: (userId) =>
+    api.get(`/user/${userId}/stats`).then((r) => r.data),
+
+  markModuleComplete: (userId) =>
+    api.post(`/user/${userId}/module-complete`).then((r) => r.data),
+}
+
+// ─── Session ──────────────────────────────────────────────────────────────────
+
+export const sessionAPI = {
+  start: (userId, persona, awarenessCompleted) =>
+    api
+      .post('/session/start', {
+        user_id: userId,
+        persona,
+        awareness_completed: awarenessCompleted,
+      })
+      .then((r) => r.data),
+
+  reveal: (sessionId, userGuess) =>
+    api
+      .post(`/session/${sessionId}/reveal`, { user_guess: userGuess })
+      .then((r) => r.data),
+}
+
+// ─── Chat ─────────────────────────────────────────────────────────────────────
+
+export const chatAPI = {
+  sendMessage: (persona, sessionId, message) =>
+    api
+      .post(`/chat/${persona}`, { session_id: sessionId, message })
+      .then((r) => r.data),
+
+  healthCheck: () => api.get('/health').then((r) => r.data),
 }
 
 export default api

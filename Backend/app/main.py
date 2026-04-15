@@ -1,40 +1,49 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.routers import chat
+from app.routers import session as session_router
 from app.config import settings
+from app import db
 
 app = FastAPI(
     title=settings.api_title,
-    description="API for Singlish conversational AI chatbot",
+    description="PersonaGuard AI — scam simulation and detection API",
     version=settings.api_version,
-    debug=settings.debug
+    debug=settings.debug,
 )
 
-# Configure CORS
+# Initialise SQLite on startup
+db.init_db()
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,  # Frontend URL
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
+# Routers
 app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(session_router.router, prefix="/api", tags=["session"])
+
 
 @app.get("/")
 async def root():
     return {
         "message": settings.api_title,
         "version": settings.api_version,
-        "model_status": "/api/model-status",
+        "docs": "/docs",
         "health": "/api/health",
-        "chat": "/api/chat"
     }
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
 
 if __name__ == "__main__":
     import uvicorn

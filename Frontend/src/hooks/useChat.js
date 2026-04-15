@@ -1,159 +1,238 @@
-import { useState, useCallback, useEffect } from "react";
-import { chatAPI } from "../services/api";
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { chatAPI, sessionAPI, userAPI } from '../services/api'
 
-function useChat() {
-  const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [isBackendReady, setIsBackendReady] = useState(false);
-  const [currentPersona, setCurrentPersona] = useState('ahbeng');
+const USER_ID_KEY = 'personaguard_user_id'
+const MAX_USER_MESSAGES = 30
 
-  const sendMessage = useCallback(
-    async (messageText) => {
-      if (!messageText.trim() || isLoading) return;
+// ─── Conversation state machine ───────────────────────────────────────────────
+// IDLE → AWARENESS_CHECK → GROUND_RULES → CHATTING → GUESS_PROMPT → REVEAL → COMPLETE
 
-      // Add user message to messages
-      const userMessage = {
-        role: "user",
-        content: messageText.trim(),
-        timestamp: new Date().toISOString(),
-      };
-
-      setMessages((prev) => [...prev, userMessage]);
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Get conversation history for API call
-        const conversationHistory = messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-
-        // Send message to backend with persona
-        const response = await chatAPI.sendMessage(
-          messageText,
-          conversationHistory,
-          currentPersona
-        );
-
-        console.log("API Response:", response);
-
-        // Add bot response to messages
-        const botMessage = {
-          role: "assistant",
-          content: response.response,
-          safety: response.safety,
-          timestamp: response.timestamp,
-        };
-
-        console.log(botMessage);
-
-        setMessages((prev) => [...prev, botMessage]);
-      } catch (err) {
-        console.error("Failed to send message:", err);
-
-        // Create error message
-        let errorMessage = "Sorry, something went wrong. Please try again.";
-
-        if (err.response?.data?.message) {
-          errorMessage = err.response.data.message;
-        } else if (err.code === "ECONNABORTED") {
-          errorMessage =
-            "Request timeout. The server might be busy, please try again.";
-        } else if (err.code === "NETWORK_ERROR") {
-          errorMessage =
-            "Network error. Please check your connection and try again.";
-        }
-
-        const errorBotMessage = {
-          role: "assistant",
-          content: errorMessage,
-          timestamp: new Date().toISOString(),
-          isError: true,
-        };
-
-        setMessages((prev) => [...prev, errorBotMessage]);
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [messages, isLoading, currentPersona]
-  );
-
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-    setError(null);
-    setInputMessage('');
-  }, []);
-
-  const retryLastMessage = useCallback(() => {
-    if (messages.length >= 2) {
-      const lastUserMessage = messages[messages.length - 2];
-      if (lastUserMessage.role === "user") {
-        // Remove the last failed bot message
-        setMessages((prev) => prev.slice(0, -1));
-        // Resend the user message
-        sendMessage(lastUserMessage.content);
-      }
-    }
-  }, [messages, sendMessage]);
-
-  // Run health check on mount and retry if needed
-  useEffect(() => {
-    let timeoutId;
-    let attemptCount = 0;
-    let isActive = true;
-
-    const performHealthCheck = async () => {
-      if (!isActive) return;
-
-      try {
-        attemptCount++;
-        console.log(`Checking backend health (attempt ${attemptCount})...`);
-
-        await chatAPI.healthCheck();
-
-        console.log("Backend is ready!");
-        setIsBackendReady(true);
-      } catch (err) {
-        console.error("Backend health check failed:", err);
-
-        if (isActive) {
-          // Retry with exponential backoff (max 30 seconds)
-          const retryDelay = Math.min(3000 * Math.pow(1.5, attemptCount - 1), 30000);
-          console.log(`Retrying health check in ${retryDelay / 1000}s...`);
-
-          timeoutId = setTimeout(performHealthCheck, retryDelay);
-        }
-      }
-    };
-
-    performHealthCheck();
-
-    return () => {
-      isActive = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, []); // Empty dependency array - only run once on mount
-
-  return {
-    messages,
-    inputMessage,
-    setInputMessage,
-    sendMessage,
-    clearMessages,
-    retryLastMessage,
-    isLoading,
-    error,
-    isBackendReady,
-    currentPersona,
-    setCurrentPersona,
-  };
+function getUserId() {
+  let id = localStorage.getItem(USER_ID_KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(USER_ID_KEY, id)
+  }
+  return id
 }
 
-export default useChat;
+function useChat() {
+  const [userId] = useState(getUserId)
+  const [currentPersona, setCurrentPersona] = useState('ahbeng')
+  const [convState, setConvState] = useState('IDLE')
+  const [messages, setMessages] = useState([])       // chat messages only
+  const [sessionId, setSessionId] = useState(null)
+  const [messageCount, setMessageCount] = useState(0) // user messages sent
+  const [isLoading, setIsLoading] = useState(false)
+  const [isBackendReady, setIsBackendReady] = useState(false)
+  const [inputMessage, setInputMessage] = useState('')
+  const [revealData, setRevealData] = useState(null)  // result of /reveal
+  const [moduleCompleted, setModuleCompleted] = useState(false)
+  const [userStats, setUserStats] = useState(null)
+
+  const healthRetryRef = useRef(null)
+
+  // ── Backend health check on mount ─────────────────────────────────────────
+  useEffect(() => {
+    let attempt = 0
+    let active = true
+
+    const check = async () => {
+      if (!active) return
+      try {
+        await chatAPI.healthCheck()
+        setIsBackendReady(true)
+        // Init user record
+        const user = await userAPI.init(userId)
+        setModuleCompleted(Boolean(user.module_completed))
+      } catch {
+        attempt++
+        const delay = Math.min(3000 * Math.pow(1.5, attempt - 1), 30000)
+        if (active) healthRetryRef.current = setTimeout(check, delay)
+      }
+    }
+
+    check()
+    return () => {
+      active = false
+      if (healthRetryRef.current) clearTimeout(healthRetryRef.current)
+    }
+  }, [userId])
+
+  // ── Start a new conversation (persona selected or New Simulation clicked) ──
+  const startConversation = useCallback(() => {
+    setMessages([])
+    setSessionId(null)
+    setMessageCount(0)
+    setRevealData(null)
+    setInputMessage('')
+    setConvState('AWARENESS_CHECK')
+  }, [])
+
+  // Called when user selects a different persona
+  const handlePersonaChange = useCallback((personaId) => {
+    setCurrentPersona(personaId)
+    setMessages([])
+    setSessionId(null)
+    setMessageCount(0)
+    setRevealData(null)
+    setInputMessage('')
+    setConvState('IDLE')
+  }, [])
+
+  // ── Step A: User answers awareness check ──────────────────────────────────
+  const answerAwareness = useCallback(
+    async (answered) => {
+      // answered: true = "Yes", false = "No"
+      setConvState('GROUND_RULES')
+
+      // Auto-advance to CHATTING after 4 seconds
+      setTimeout(async () => {
+        setConvState('CHATTING')
+        setIsLoading(true)
+        try {
+          const { session_id, first_message } = await sessionAPI.start(
+            userId,
+            currentPersona,
+            answered
+          )
+          setSessionId(session_id)
+          setMessages([{ role: 'assistant', content: first_message }])
+        } catch (err) {
+          console.error('Session start failed:', err)
+          setMessages([
+            {
+              role: 'assistant',
+              content: 'Failed to start session — please try again.',
+              isError: true,
+            },
+          ])
+        } finally {
+          setIsLoading(false)
+        }
+      }, 4000)
+    },
+    [userId, currentPersona]
+  )
+
+  // ── Step C: Send a chat message ────────────────────────────────────────────
+  const sendMessage = useCallback(
+    async (text) => {
+      if (!text.trim() || isLoading || convState !== 'CHATTING') return
+      if (!sessionId) return
+
+      const userMsg = { role: 'user', content: text.trim() }
+      setMessages((prev) => [...prev, userMsg])
+      setInputMessage('')
+      setIsLoading(true)
+
+      try {
+        const data = await chatAPI.sendMessage(currentPersona, sessionId, text.trim())
+
+        const botMsg = {
+          role: 'assistant',
+          content: data.response,
+          safety: data.safety,
+        }
+        setMessages((prev) => [...prev, botMsg])
+        setMessageCount(data.message_count)
+
+        if (data.session_complete) {
+          setConvState('GUESS_PROMPT')
+        }
+      } catch (err) {
+        console.error('sendMessage failed:', err)
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Something went wrong — please try again.',
+            isError: true,
+          },
+        ])
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [isLoading, convState, sessionId, currentPersona]
+  )
+
+  // ── Step D → E: User submits guess → reveal ────────────────────────────────
+  const submitGuess = useCallback(
+    async (guess) => {
+      if (!sessionId) return
+      setIsLoading(true)
+      try {
+        const data = await sessionAPI.reveal(sessionId, guess)
+        setRevealData({ ...data, userGuess: guess })
+        setConvState('REVEAL')
+
+        // Refresh stats
+        const stats = await userAPI.getStats(userId)
+        setUserStats(stats)
+      } catch (err) {
+        console.error('Reveal failed:', err)
+      } finally {
+        setIsLoading(false)
+        setConvState('REVEAL')
+      }
+    },
+    [sessionId, userId]
+  )
+
+  // ── Step F: Start over ─────────────────────────────────────────────────────
+  const resetConversation = useCallback(() => {
+    setMessages([])
+    setSessionId(null)
+    setMessageCount(0)
+    setRevealData(null)
+    setInputMessage('')
+    setConvState('IDLE')
+  }, [])
+
+  // ── Module completed ───────────────────────────────────────────────────────
+  const markModuleComplete = useCallback(async () => {
+    try {
+      await userAPI.markModuleComplete(userId)
+      setModuleCompleted(true)
+    } catch (err) {
+      console.error('Module complete failed:', err)
+    }
+  }, [userId])
+
+  const loadStats = useCallback(async () => {
+    try {
+      const stats = await userAPI.getStats(userId)
+      setUserStats(stats)
+    } catch (err) {
+      console.error('Load stats failed:', err)
+    }
+  }, [userId])
+
+  return {
+    userId,
+    currentPersona,
+    convState,
+    messages,
+    sessionId,
+    messageCount,
+    isLoading,
+    isBackendReady,
+    inputMessage,
+    setInputMessage,
+    revealData,
+    moduleCompleted,
+    userStats,
+    // actions
+    startConversation,
+    handlePersonaChange,
+    answerAwareness,
+    sendMessage,
+    submitGuess,
+    resetConversation,
+    markModuleComplete,
+    loadStats,
+  }
+}
+
+export default useChat
