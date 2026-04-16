@@ -9,7 +9,6 @@ const PERSONA_LABELS = {
   ahbeng: 'Job Scam',
   xmm: 'Love Scam',
   spf: 'Police Impersonation',
-  singlish: 'Phishing',
 }
 
 function AppLayout({
@@ -31,6 +30,9 @@ function AppLayout({
   answerAwareness,
   submitGuess,
   resetConversation,
+  // auth
+  username,
+  onLogout,
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const navigate = useNavigate()
@@ -66,6 +68,8 @@ function AppLayout({
             onPersonaChange={handlePersonaSelect}
             currentPersona={currentPersona}
             moduleCompleted={moduleCompleted}
+            username={username}
+            onLogout={onLogout}
           />
         </div>
 

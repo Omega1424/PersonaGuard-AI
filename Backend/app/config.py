@@ -3,10 +3,7 @@ from typing import Optional, List
 
 
 class Settings(BaseSettings):
-    # ── Required ──────────────────────────────────────────────────────────────
-    gemini_api_key: Optional[str] = None
-
-    # ── Optional (legacy HuggingFace) ─────────────────────────────────────────
+    # ── HuggingFace token (optional — HF Spaces are public) ──────────────────
     hf_token: Optional[str] = None
 
     # ── API ────────────────────────────────────────────────────────────────────
@@ -46,6 +43,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         protected_namespaces=("settings_",),
         case_sensitive=False,
+        extra="ignore",
     )
 
 

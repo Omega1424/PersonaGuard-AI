@@ -5,7 +5,6 @@ const PERSONA_LABELS = {
   ahbeng: { label: 'Ah Beng', icon: '💼' },
   xmm: { label: 'XMM', icon: '💔' },
   spf: { label: 'SPF Officer', icon: '👮' },
-  singlish: { label: 'Phishing', icon: '🎣' },
 }
 
 function StatCard({ label, value, sub, color = 'purple' }) {

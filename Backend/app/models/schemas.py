@@ -38,6 +38,21 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = datetime.now()
 
 
+# ─── Auth schemas ─────────────────────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class AuthResponse(BaseModel):
+    user_id: str
+    username: str
+
+
 # ─── New session-based schemas ────────────────────────────────────────────────
 
 class UserInitRequest(BaseModel):
@@ -51,7 +66,7 @@ class UserInitResponse(BaseModel):
 
 class SessionStartRequest(BaseModel):
     user_id: str
-    persona: str  # ahbeng | xmm | spf | singlish
+    persona: str  # ahbeng | xmm | spf
     awareness_completed: bool  # what the user answered to the awareness check
 
 

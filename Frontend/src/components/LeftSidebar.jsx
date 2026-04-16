@@ -23,16 +23,9 @@ const PERSONAS = [
     scamType: 'Police Impersonation',
     description: 'Fear via perceived authority',
   },
-  {
-    id: 'singlish',
-    name: 'Phishing',
-    icon: '🎣',
-    scamType: 'Phishing',
-    description: 'Fake links & credential theft',
-  },
 ]
 
-function LeftSidebar({ onNewChat, onPersonaChange, currentPersona = 'ahbeng', moduleCompleted }) {
+function LeftSidebar({ onNewChat, onPersonaChange, currentPersona = 'ahbeng', moduleCompleted, username, onLogout }) {
   const location = useLocation()
   const isOnChat = location.pathname === '/'
 
@@ -127,10 +120,27 @@ function LeftSidebar({ onNewChat, onPersonaChange, currentPersona = 'ahbeng', mo
         </Link>
       </div>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-purple-200/50 dark:border-purple-900/50">
-        <p className="text-xs text-purple-400/60 dark:text-purple-500/60 leading-relaxed">
-          Simulations are for educational purposes. Learn to spot red flags before real scammers do.
+      {/* Footer — user info + logout */}
+      <div className="px-4 py-3 border-t border-purple-200/50 dark:border-purple-900/50 space-y-2">
+        {username && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs text-white font-bold">{username[0].toUpperCase()}</span>
+              </div>
+              <span className="text-xs text-purple-300 dark:text-purple-300 truncate font-medium">{username}</span>
+            </div>
+            <button
+              onClick={onLogout}
+              className="text-xs text-purple-500/70 dark:text-purple-400/70 hover:text-red-400 dark:hover:text-red-400 transition-colors flex-shrink-0 ml-2"
+              title="Log out"
+            >
+              Log out
+            </button>
+          </div>
+        )}
+        <p className="text-xs text-purple-400/50 dark:text-purple-500/50 leading-relaxed">
+          Simulations are for educational purposes.
         </p>
       </div>
     </div>

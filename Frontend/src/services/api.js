@@ -29,6 +29,16 @@ api.interceptors.response.use(
   }
 )
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export const authAPI = {
+  register: (username, password) =>
+    api.post('/auth/register', { username, password }).then((r) => r.data),
+
+  login: (username, password) =>
+    api.post('/auth/login', { username, password }).then((r) => r.data),
+}
+
 // ─── User ─────────────────────────────────────────────────────────────────────
 
 export const userAPI = {

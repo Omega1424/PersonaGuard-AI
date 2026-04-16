@@ -1,11 +1,16 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from './contexts/ThemeContext'
 import AppLayout from './AppLayout'
 import AwarenessModule from './pages/AwarenessModule'
 import StatsPage from './pages/StatsPage'
+import LoginPage from './pages/LoginPage'
 import useChat from './hooks/useChat'
 
-function AppRoot() {
+const STORAGE_USER_ID = 'personaguard_user_id'
+const STORAGE_USERNAME = 'personaguard_username'
+
+function AppRoot({ username, onLogout }) {
   const chat = useChat()
 
   return (
@@ -30,6 +35,8 @@ function AppRoot() {
             answerAwareness={chat.answerAwareness}
             submitGuess={chat.submitGuess}
             resetConversation={chat.resetConversation}
+            username={username}
+            onLogout={onLogout}
           />
         }
       />
@@ -56,10 +63,33 @@ function AppRoot() {
 }
 
 function App() {
+  const [authState, setAuthState] = useState(() => {
+    const userId = localStorage.getItem(STORAGE_USER_ID)
+    const username = localStorage.getItem(STORAGE_USERNAME)
+    return userId && username ? { userId, username } : null
+  })
+
+  const handleAuthSuccess = (userId, username) => {
+    setAuthState({ userId, username })
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_USER_ID)
+    localStorage.removeItem(STORAGE_USERNAME)
+    setAuthState(null)
+  }
+
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <AppRoot />
+        {authState ? (
+          <AppRoot
+            username={authState.username}
+            onLogout={handleLogout}
+          />
+        ) : (
+          <LoginPage onSuccess={handleAuthSuccess} />
+        )}
       </ThemeProvider>
     </BrowserRouter>
   )

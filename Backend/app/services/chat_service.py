@@ -1,37 +1,157 @@
 """
-Gemini-based session-aware chat service for PersonaGuard AI.
-Uses the new google-genai SDK (replaces deprecated google-generativeai).
+HuggingFace-based session-aware chat service for PersonaGuard AI.
+Chat: gradio_client calling persona HF Spaces with ChatML prompt injection.
+Red flags: HF Inference API classifier at reveal time (scam sessions only).
 """
+import json
+import ast
 import logging
+import re
+import requests
 from typing import List, Dict, Any, Tuple
 
-from google import genai
-from google.genai import types
+from gradio_client import Client
 
 from app import db
 from app.config import settings
-from app.services.prompts import SYSTEM_PROMPTS, scan_for_red_flags
 
 logger = logging.getLogger(__name__)
 
-MAX_USER_MESSAGES = 30
-MODEL = "gemini-2.0-flash"
+MAX_USER_MESSAGES = 10
 
 OPEN_TRIGGER = "Start the conversation now. Send your opening message as your character. Keep it brief and natural."
 
+# HF Space per persona (spf uses the nsf-persona space)
+HF_SPACES: Dict[str, str] = {
+    "ahbeng": "yuhueng/ahbeng-persona",
+    "xmm":    "yuhueng/xmm-persona",
+    "spf":    "yuhueng/nsf-persona",
+}
 
-def _client() -> genai.Client:
-    return genai.Client(api_key=settings.gemini_api_key)
+# Classifier for red flag detection at reveal time
+HF_CLASSIFIER = "priyanshis9876/singlish_scam_classifier"
+CLASSIFIER_THRESHOLD = 0.6
+
+# System prompts imported lazily to avoid circular issues
+def _get_system_prompt(persona: str, mode: str) -> str:
+    from app.services.prompts import SYSTEM_PROMPTS
+    return SYSTEM_PROMPTS[persona][mode]
 
 
-def _build_history(stored_messages: List[Dict[str, Any]]) -> List[types.Content]:
-    """Convert stored DB messages to Gemini Content objects, prepending the open trigger."""
-    history = [types.Content(role="user", parts=[types.Part(text=OPEN_TRIGGER)])]
-    for msg in stored_messages:
-        role = "model" if msg["role"] == "assistant" else "user"
-        history.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
-    return history
+# ─── Prompt building ──────────────────────────────────────────────────────────
 
+def _build_prompt(system_prompt: str, stored_history: List[Dict[str, Any]], current_user_msg: str) -> str:
+    """
+    Build a full ChatML-formatted prompt string.
+    stored_history: all DB messages up to (but NOT including) the current user message.
+    OPEN_TRIGGER is prepended as the first user turn to prime the model.
+    """
+    lines = []
+    lines.append(f"<|im_start|>system\n{system_prompt}\n<|im_end|>")
+    lines.append(f"<|im_start|>user\n{OPEN_TRIGGER}\n<|im_end|>")
+
+    for msg in stored_history:
+        role = "assistant" if msg["role"] == "assistant" else "user"
+        lines.append(f"<|im_start|>{role}\n{msg['content']}\n<|im_end|>")
+
+    lines.append(f"<|im_start|>user\n{current_user_msg}\n<|im_end|>")
+    lines.append("<|im_start|>assistant\n")
+
+    return "\n".join(lines)
+
+
+# ─── HF Space inference ───────────────────────────────────────────────────────
+
+def _parse_hf_result(result: Any) -> str:
+    """Extract text response from HF Space result (JSON string or raw text)."""
+    try:
+        parsed = json.loads(result)
+        return str(parsed.get("response", result)).strip()
+    except (json.JSONDecodeError, TypeError):
+        try:
+            parsed = ast.literal_eval(result)
+            return str(parsed.get("response", result)).strip()
+        except Exception:
+            return str(result).strip()
+
+
+def _call_hf(persona: str, prompt: str) -> str:
+    """Call the HF Space for the given persona and return the response text."""
+    space = HF_SPACES[persona]
+    try:
+        client = Client(space)
+        result = client.predict(prompt, api_name="/inference")
+        return _parse_hf_result(result)
+    except Exception as e:
+        err = str(e)
+        if "GPU quota" in err:
+            wait = re.search(r'Try again in ([\d:]+)', err)
+            wait_str = wait.group(1) if wait else "a few minutes"
+            raise RuntimeError(f"GPU quota exceeded — try again in {wait_str}")
+        logger.error(f"HF inference error [{space}]: {err}")
+        raise
+
+
+# ─── Classifier (reveal time only) ───────────────────────────────────────────
+
+def _classify_scam_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Run the HF Inference API scam classifier on each assistant message.
+    Returns red_flags list: [{phrase, message_index, explanation}]
+    for messages that score above CLASSIFIER_THRESHOLD as scam.
+    """
+    headers = {"Content-Type": "application/json"}
+    if settings.hf_token:
+        headers["Authorization"] = f"Bearer {settings.hf_token}"
+
+    flags = []
+    for msg in messages:
+        if msg["role"] != "assistant":
+            continue
+        text = msg["content"].strip()
+        if not text:
+            continue
+
+        try:
+            r = requests.post(
+                f"https://api-inference.huggingface.co/models/{HF_CLASSIFIER}",
+                headers=headers,
+                json={"inputs": text},
+                timeout=20,
+            )
+            r.raise_for_status()
+            result = r.json()
+
+            # Handle [[{label, score}]] or [{label, score}]
+            if isinstance(result, list) and result:
+                preds = result[0] if isinstance(result[0], list) else result
+            else:
+                continue
+
+            # Find the scam label (ignore "not_scam", "legit", "safe" variants)
+            scam_score = None
+            for pred in preds:
+                label = pred.get("label", "").upper()
+                if "SCAM" in label and "NOT" not in label:
+                    scam_score = pred.get("score", 0)
+                    break
+
+            if scam_score is not None and scam_score >= CLASSIFIER_THRESHOLD:
+                pct = round(scam_score * 100)
+                flags.append({
+                    "phrase": text,
+                    "message_index": msg["message_index"],
+                    "explanation": f"AI classifier flagged this message as scam ({pct}% confidence) — it contains language typical of manipulation tactics.",
+                })
+
+        except Exception as e:
+            logger.warning(f"Classifier failed on message_index={msg.get('message_index')}: {e}")
+            continue
+
+    return flags
+
+
+# ─── Public API ───────────────────────────────────────────────────────────────
 
 def start_session(
     user_id: str,
@@ -40,15 +160,15 @@ def start_session(
     awareness_answered: str,
 ) -> Tuple[str, str]:
     session_id = db.create_session(user_id, persona, mode, awareness_answered)
-    system_prompt = SYSTEM_PROMPTS[persona][mode]
+    system_prompt = _get_system_prompt(persona, mode)
 
-    client = _client()
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=OPEN_TRIGGER,
-        config=types.GenerateContentConfig(system_instruction=system_prompt),
+    # Opening prompt — no prior history, prime model to generate opening line
+    prompt = (
+        f"<|im_start|>system\n{system_prompt}\n<|im_end|>\n"
+        f"<|im_start|>user\n{OPEN_TRIGGER}\n<|im_end|>\n"
+        f"<|im_start|>assistant\n"
     )
-    first_message = response.text.strip()
+    first_message = _call_hf(persona, prompt)
 
     db.add_message(session_id, "assistant", first_message, message_index=1)
     logger.info(f"[{session_id}] Session started — persona={persona} mode={mode}")
@@ -64,7 +184,7 @@ def chat(session_id: str, user_message: str) -> Dict[str, Any]:
 
     persona = session["persona"]
     mode = session["mode"]
-    system_prompt = SYSTEM_PROMPTS[persona][mode]
+    system_prompt = _get_system_prompt(persona, mode)
 
     stored = db.get_session_messages(session_id)
     next_index = len(stored) + 1
@@ -74,24 +194,12 @@ def chat(session_id: str, user_message: str) -> Dict[str, Any]:
 
     user_msg_count = db.count_user_messages(session_id)
 
-    # History = everything stored except the last user message we just added
-    stored_without_last = db.get_session_messages(session_id)[:-1]
-    history = _build_history(stored_without_last)
+    # History = everything stored except the user message we just added
+    history_without_last = db.get_session_messages(session_id)[:-1]
+    prompt = _build_prompt(system_prompt, history_without_last, user_message)
 
-    client = _client()
-    chat_session = client.chats.create(
-        model=MODEL,
-        config=types.GenerateContentConfig(system_instruction=system_prompt),
-        history=history,
-    )
-    response = chat_session.send_message(user_message)
-    assistant_text = response.text.strip()
-
+    assistant_text = _call_hf(persona, prompt)
     db.add_message(session_id, "assistant", assistant_text, message_index=next_index)
-
-    if mode == "scam":
-        for flag in scan_for_red_flags(persona, assistant_text, message_index=next_index):
-            db.append_red_flag(session_id, flag)
 
     session_complete = user_msg_count >= MAX_USER_MESSAGES
     logger.info(f"[{session_id}] msg {user_msg_count}/{MAX_USER_MESSAGES} — complete={session_complete}")
@@ -111,10 +219,13 @@ def reveal(session_id: str, user_guess: str) -> Dict[str, Any]:
 
     actual_mode = session["mode"]
     guess_correct = user_guess == actual_mode
-    red_flags = session.get("red_flags_used", [])
 
-    seen = set()
-    unique_flags = [f for f in red_flags if f["explanation"] not in seen and not seen.add(f["explanation"])]
+    # Run classifier on all assistant messages (scam sessions only)
+    if actual_mode == "scam":
+        all_messages = db.get_session_messages(session_id)
+        red_flags = _classify_scam_messages(all_messages)
+    else:
+        red_flags = []
 
     db.complete_session(session_id, user_guess, guess_correct)
     stats = db.get_user_stats(session["user_id"])
@@ -122,7 +233,7 @@ def reveal(session_id: str, user_guess: str) -> Dict[str, Any]:
     return {
         "actual_mode": actual_mode,
         "guess_correct": guess_correct,
-        "red_flags": unique_flags,
+        "red_flags": red_flags,
         "score_update": {
             "total_completed": stats["total_completed"],
             "accuracy": stats["accuracy"],

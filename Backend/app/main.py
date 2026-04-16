@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import chat
 from app.routers import session as session_router
+from app.routers import auth as auth_router
 from app.config import settings
 from app import db
 
@@ -26,6 +27,7 @@ app.add_middleware(
 )
 
 # Routers
+app.include_router(auth_router.router, prefix="/api", tags=["auth"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(session_router.router, prefix="/api", tags=["session"])
 

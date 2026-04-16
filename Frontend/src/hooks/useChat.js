@@ -2,18 +2,14 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { chatAPI, sessionAPI, userAPI } from '../services/api'
 
 const USER_ID_KEY = 'personaguard_user_id'
-const MAX_USER_MESSAGES = 30
+const MAX_USER_MESSAGES = 10
 
 // ─── Conversation state machine ───────────────────────────────────────────────
 // IDLE → AWARENESS_CHECK → GROUND_RULES → CHATTING → GUESS_PROMPT → REVEAL → COMPLETE
 
 function getUserId() {
-  let id = localStorage.getItem(USER_ID_KEY)
-  if (!id) {
-    id = crypto.randomUUID()
-    localStorage.setItem(USER_ID_KEY, id)
-  }
-  return id
+  // Set by LoginPage after auth — never auto-generated
+  return localStorage.getItem(USER_ID_KEY) || ''
 }
 
 function useChat() {

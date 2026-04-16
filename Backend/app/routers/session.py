@@ -17,7 +17,7 @@ from app.models.schemas import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-VALID_PERSONAS = {"ahbeng", "xmm", "spf", "singlish"}
+VALID_PERSONAS = {"ahbeng", "xmm", "spf"}
 
 
 # ─── User endpoints ────────────────────────────────────────────────────────────

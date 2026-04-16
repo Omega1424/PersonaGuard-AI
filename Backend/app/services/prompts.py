@@ -1,6 +1,6 @@
 """
 Dual system prompts (scam + legit) and red flag patterns for every persona.
-Personas: ahbeng, xmm, spf, singlish (phishing)
+Personas: ahbeng, xmm, spf
 """
 import re
 from typing import List, Dict, Any
@@ -92,32 +92,6 @@ Behave like a real, helpful officer:
 Speak formally but warmly. Be helpful and protective. Keep responses concise.""",
     },
 
-    "singlish": {
-        "scam": """You are a scammer sending phishing messages pretending to be from a Singapore bank, SingPass, or delivery service (e.g., SingPost, DHL).
-
-Tactics you MUST naturally weave into the conversation (use at least 3 across the chat):
-- Send a fake urgent notification ("Your POSB account has been temporarily suspended")
-- Include a fake link to click (use obviously fake placeholders like "http://singpass-verify-sg.com.fake-login.net")
-- Ask for OTP, login credentials, or credit card details to "verify" or "unlock" the account
-- Create urgency ("you have 24 hours to verify or your account will be permanently closed")
-- Mimic official communication style but with subtle errors or unusual requests
-- If questioned, insist it's legitimate and pressure them to act fast ("many customers affected, please verify now")
-
-Mimic official customer service language. Start with the notification message.
-Do NOT reveal you are a scam. Do NOT break character. Use formal but slightly off language.""",
-
-        "legit": """You are a real customer service agent from a Singapore bank or SingPass/GovTech support team.
-
-Behave like a real, legitimate agent:
-- Proactively remind the user: never share OTP, passwords, or SingPass credentials with anyone
-- Direct them to the official app (e.g., "please log in at the official MyInfo app or singpass.gov.sg")
-- NEVER send clickable links — "please type the URL yourself for safety"
-- If the user received a suspicious message, commend their caution and help them report it
-- Provide the official hotline: SingPass helpdesk 6335-3533, ScamShield 1800-722-6688
-- Be patient, professional, and reassuring
-
-Speak formally. Be genuinely helpful and protective. Keep responses concise.""",
-    },
 }
 
 
@@ -209,32 +183,6 @@ SCAM_FLAGS: Dict[str, List[RedFlag]] = {
         },
     ],
 
-    "singlish": [
-        {
-            "pattern": r"(http|https|www\.|\.com|\.net|\.sg|click.{0,15}link|tap.{0,15}link|verify.{0,15}link)",
-            "explanation": "Legitimate banks and government services will never send links in chat. Type the URL yourself.",
-        },
-        {
-            "pattern": r"(OTP|one.time.password|verification code|6.digit|enter.{0,15}code)",
-            "explanation": "Never share your OTP with anyone — not even someone claiming to be from your bank.",
-        },
-        {
-            "pattern": r"(suspended|locked|blocked|compromised|unusual.{0,15}activity|unauthori[sz]ed)",
-            "explanation": "Fake urgency about account suspension is the most common phishing trigger.",
-        },
-        {
-            "pattern": r"(24.hour|48.hour|within.{0,10}hour|immediately|or.{0,10}(account|access).{0,15}(close|terminate|suspend))",
-            "explanation": "Artificial deadlines pressure you into acting without thinking — a classic phishing tactic.",
-        },
-        {
-            "pattern": r"(login|log in|sign in|enter.{0,20}(password|credential|username)|account.{0,20}detail)",
-            "explanation": "Legitimate services never ask for your login credentials via chat or message.",
-        },
-        {
-            "pattern": r"(credit card|card number|CVV|expiry|bank account|account number|NRIC)",
-            "explanation": "No legitimate service asks for your credit card or bank details over chat.",
-        },
-    ],
 }
 
 

@@ -24,13 +24,15 @@ def get_conn() -> sqlite3.Connection:
 
 
 def init_db():
-    """Create tables if they don't exist."""
+    """Create tables if they don't exist. Runs migrations for existing DBs."""
     with get_conn() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS users (
-                user_id     TEXT PRIMARY KEY,
+                user_id         TEXT PRIMARY KEY,
+                username        TEXT UNIQUE,
+                password_hash   TEXT,
                 module_completed BOOLEAN DEFAULT FALSE,
-                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS sessions (
@@ -57,10 +59,42 @@ def init_db():
                 FOREIGN KEY (session_id) REFERENCES sessions(session_id)
             );
         """)
+        # Migration: add auth columns to existing DBs (silently skip if already present)
+        for stmt in [
+            "ALTER TABLE users ADD COLUMN username TEXT",
+            "ALTER TABLE users ADD COLUMN password_hash TEXT",
+        ]:
+            try:
+                conn.execute(stmt)
+            except Exception:
+                pass
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)"
+        )
     logger.info(f"Database initialised at {DB_PATH}")
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
+
+def create_user(username: str, password_hash: str) -> Dict[str, Any]:
+    """Create a new user with credentials. Returns the created user record."""
+    user_id = str(uuid.uuid4())
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (user_id, username, password_hash) VALUES (?, ?, ?)",
+            (user_id, username, password_hash),
+        )
+    return get_user(user_id)
+
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT user_id, username, password_hash, module_completed, created_at FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+    return dict(row) if row else None
+
 
 def upsert_user(user_id: str) -> Dict[str, Any]:
     """Create user if not exists; return user record."""
@@ -198,7 +232,7 @@ def get_user_stats(user_id: str) -> Dict[str, Any]:
         return {
             "total_completed": 0,
             "accuracy": None,
-            "accuracy_by_persona": {"ahbeng": None, "xmm": None, "spf": None, "singlish": None},
+            "accuracy_by_persona": {"ahbeng": None, "xmm": None, "spf": None},
             "pre_module_accuracy": None,
             "post_module_accuracy": None,
             "current_streak": 0,
@@ -212,7 +246,7 @@ def get_user_stats(user_id: str) -> Dict[str, Any]:
     accuracy = round(correct / total * 100, 1) if total else None
 
     # Per-persona accuracy
-    personas = ["ahbeng", "xmm", "spf", "singlish"]
+    personas = ["ahbeng", "xmm", "spf"]
     acc_by_persona = {}
     for p in personas:
         p_rows = [r for r in rows if r["persona"] == p]

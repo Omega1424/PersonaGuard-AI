@@ -5,4 +5,4 @@ pydantic-settings
 python-multipart
 gradio_client
 python-dotenv
-google-genai
+requests

@@ -46,19 +46,6 @@ const PERSONA_META = {
       "Let me speak to your superior",
     ],
   },
-  singlish: {
-    label: 'Phishing',
-    title: 'Phishing Simulator',
-    description: "The AI will play a customer service agent from a bank or SingPass. They may be legitimate — or they may be phishing for your credentials.",
-    prompts: [
-      "I got a message saying my account is suspended",
-      "This says I have a parcel to collect",
-      "It says I need to verify my Singpass",
-      "Should I click this link?",
-      "Why is it asking for my OTP?",
-      "This looks like it's from my bank",
-    ],
-  },
 }
 
 function ChatWindow({
@@ -210,7 +197,7 @@ function ChatWindow({
         <div className="bg-purple-100/60 dark:bg-purple-950/60 border border-purple-300/40 dark:border-purple-800/40 rounded-2xl px-6 py-5 max-w-md text-sm text-purple-700 dark:text-purple-300 leading-relaxed mb-4">
           This conversation <strong>may be a scam or may be completely legitimate.</strong>
           <br /><br />
-          Chat naturally and try to figure it out. The truth will be revealed after <strong>30 messages</strong>.
+          Chat naturally and try to figure it out. The truth will be revealed after <strong>10 messages</strong>.
         </div>
         <div className="flex items-center space-x-2 text-sm text-purple-500/60 dark:text-purple-400/60">
           <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

@@ -1,23 +1,21 @@
 """
-Chat router — session-based endpoint + legacy endpoints for backward compat.
+Chat router — session-based chat endpoint.
 """
 import logging
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import (
-    ChatRequest, ChatResponse, HealthCheck,
+    HealthCheck,
     SessionChatRequest, SessionChatResponse,
 )
 from app.services import chat_service
-from app.services.model import singlish_service, xmm_service, ahbeng_service, nsf_service
 from app import db
-import json
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-VALID_PERSONAS = {"ahbeng", "xmm", "spf", "singlish"}
+VALID_PERSONAS = {"ahbeng", "xmm", "spf"}
 
 # ─── Primary session-based endpoint ───────────────────────────────────────────
 
@@ -61,7 +59,7 @@ def health_check():
 
 @router.get("/model-status")
 def model_status():
-    return {"status": "ok", "backend": "anthropic-claude-haiku"}
+    return {"status": "ok", "backend": "huggingface-spaces"}
 
 
 @router.get("/")
