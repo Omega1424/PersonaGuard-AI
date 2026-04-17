@@ -105,11 +105,31 @@ class ScoreUpdate(BaseModel):
     scam_detection_rate: Optional[float]
 
 
+# ─── Gemini judge schemas ─────────────────────────────────────────────────────
+
+class JudgeRedFlag(BaseModel):
+    phrase: str
+    type: str        # urgency | impersonation | money_request | emotional_manipulation | secrecy | unrealistic_offer | information_harvesting
+    explanation: str
+
+
+class JudgeAnalysis(BaseModel):
+    ground_truth_judgment: str          # "scam" | "legit"
+    judgment_reasoning: str
+    reasoning_quality: str              # "strong" | "weak" | "lucky" | "incorrect"
+    reasoning_explanation: str
+    red_flags: List[JudgeRedFlag]
+    pedagogical_feedback: str
+    difficulty_score: int               # 1–10
+    difficulty_explanation: str
+
+
 class RevealResponse(BaseModel):
     actual_mode: str          # "scam" | "legit"
     guess_correct: bool
     red_flags: List[RedFlag]
     score_update: ScoreUpdate
+    judge: Optional[JudgeAnalysis] = None
 
 
 class UserStatsResponse(BaseModel):

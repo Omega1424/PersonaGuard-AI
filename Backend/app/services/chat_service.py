@@ -21,7 +21,7 @@ MAX_USER_MESSAGES = 10
 
 OPEN_TRIGGER = "Start the conversation now. Send your opening message as your character. Keep it brief and natural."
 
-# HF Space per persona (spf uses the nsf-persona space)
+# HF Spaces per persona — swap these out once Priyanshi deploys her Spaces
 HF_SPACES: Dict[str, str] = {
     "ahbeng": "yuhueng/ahbeng-persona",
     "xmm":    "yuhueng/xmm-persona",
@@ -220,12 +220,17 @@ def reveal(session_id: str, user_guess: str) -> Dict[str, Any]:
     actual_mode = session["mode"]
     guess_correct = user_guess == actual_mode
 
+    all_messages = db.get_session_messages(session_id)
+
     # Run classifier on all assistant messages (scam sessions only)
     if actual_mode == "scam":
-        all_messages = db.get_session_messages(session_id)
         red_flags = _classify_scam_messages(all_messages)
     else:
         red_flags = []
+
+    # Gemini LLM judge — runs for both scam and legit sessions
+    from app.services.gemini_judge import judge_conversation
+    judge = judge_conversation(all_messages, actual_mode, user_guess)
 
     db.complete_session(session_id, user_guess, guess_correct)
     stats = db.get_user_stats(session["user_id"])
@@ -240,4 +245,5 @@ def reveal(session_id: str, user_guess: str) -> Dict[str, Any]:
             "current_streak": stats["current_streak"],
             "scam_detection_rate": stats["scam_detection_rate"],
         },
+        "judge": judge,
     }

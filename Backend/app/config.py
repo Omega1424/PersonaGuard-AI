@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     # ── HuggingFace token (optional — HF Spaces are public) ──────────────────
     hf_token: Optional[str] = None
 
+    # ── Gemini API key (for LLM judge at reveal time) ─────────────────────────
+    gemini_api_key: Optional[str] = None
+
     # ── API ────────────────────────────────────────────────────────────────────
     api_title: str = "PersonaGuard AI API"
     api_version: str = "3.0.0"

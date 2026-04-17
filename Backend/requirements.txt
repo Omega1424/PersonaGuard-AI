@@ -6,3 +6,4 @@ python-multipart
 gradio_client
 python-dotenv
 requests
+google-genai
