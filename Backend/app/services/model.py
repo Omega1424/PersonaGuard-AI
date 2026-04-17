@@ -175,7 +175,7 @@ class XMMModelService(BaseModelService):
             logger.info("Initializing XMM HuggingFace inference client...")
 
             self.client = Client(
-                "yuhueng/xmm-persona", 
+                "priyanshis9876/xmm_singlish_persona", 
                 token=settings.hf_token
             )
 
@@ -204,7 +204,7 @@ class XMMModelService(BaseModelService):
         return {
             **base_status,
             "inference_type": "HuggingFace API (Placeholder)",
-            "hf_space": "yuhueng/XMM-Placeholder",
+            "hf_space": "priyanshis9876/xmm_singlish_persona",
             "local_model": "No (remote inference)",
             "status": "placeholder - needs actual model endpoint"
         }
@@ -229,7 +229,7 @@ class AhBengModelService(BaseModelService):
             logger.info("Initializing Ah Beng HuggingFace inference client...")
 
             self.client = Client(
-                "yuhueng/ahbeng-persona",
+                "priyanshis9876/ahbeng_singlish_persona",
                 token=settings.hf_token
             )
 
@@ -258,7 +258,7 @@ class AhBengModelService(BaseModelService):
         return {
             **base_status,
             "inference_type": "HuggingFace API (Placeholder)",
-            "hf_space": "yuhueng/AhBeng-Placeholder",
+            "hf_space": "priyanshis9876/ahbeng_singlish_persona",
             "local_model": "No (remote inference)",
             "status": "placeholder - needs actual model endpoint"
         }
@@ -283,7 +283,7 @@ class NSFModelService(BaseModelService):
             logger.info("Initializing NSF HuggingFace inference client...")
 
             self.client = Client(
-                "yuhueng/nsf-persona",
+                "priyanshis9876/spf_singlish_persona",
                 token=settings.hf_token
             )
 
@@ -312,7 +312,7 @@ class NSFModelService(BaseModelService):
         return {
             **base_status,
             "inference_type": "HuggingFace API",
-            "hf_space": "yuhueng/nsf-persona",
+            "hf_space": "priyanshis9876/spf_singlish_persona",
             "local_model": "No (remote inference)",
             "status": "active"
         }

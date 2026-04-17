@@ -23,9 +23,9 @@ OPEN_TRIGGER = "Start the conversation now. Send your opening message as your ch
 
 # HF Spaces per persona — swap these out once Priyanshi deploys her Spaces
 HF_SPACES: Dict[str, str] = {
-    "ahbeng": "yuhueng/ahbeng-persona",
-    "xmm":    "yuhueng/xmm-persona",
-    "spf":    "yuhueng/nsf-persona",
+    "ahbeng": "priyanshis9876/ahbeng_singlish_persona",
+    "xmm":    "priyanshis9876/xmm_singlish_persona",
+    "spf":    "priyanshis9876/spf_singlish_persona",
 }
 
 # Classifier for red flag detection at reveal time
